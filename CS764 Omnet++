@@ -1,0 +1,181 @@
+This is the code for omnet++ with the experimental configuration and the corresponding C++
+network TreeAndMeshTopology
+{
+    submodules:
+        // Defining nodes for the tree topology
+        node1: StandardHost;
+        node2: StandardHost;
+        node3: StandardHost;
+        node4: StandardHost;
+        node5: StandardHost;
+        node6: StandardHost;
+        node7: StandardHost;
+        node8: StandardHost;
+
+        // Defining nodes for the mesh topology
+        nodeA: StandardHost;
+        nodeB: StandardHost;
+        nodeC: StandardHost;
+        nodeD: StandardHost;
+        nodeE: StandardHost;
+        nodeF: StandardHost;
+        nodeG: StandardHost;
+        nodeH: StandardHost;
+
+    connections:
+        // Tree topology connections
+        node1.pppg++ <--> { delay = 10ms; } <--> node2.pppg++;
+        node1.pppg++ <--> { delay = 10ms; } <--> node3.pppg++;
+        node2.pppg++ <--> { delay = 10ms; } <--> node4.pppg++;
+        node3.pppg++ <--> { delay = 10ms; } <--> node5.pppg++;
+        node4.pppg++ <--> { delay = 10ms; } <--> node6.pppg++;
+        node5.pppg++ <--> { delay = 10ms; } <--> node7.pppg++;
+        node6.pppg++ <--> { delay = 10ms; } <--> node8.pppg++;
+
+        // Mesh topology connections
+        nodeA.pppg++ <--> { delay = 10ms; } <--> nodeB.pppg++;
+        nodeA.pppg++ <--> { delay = 10ms; } <--> nodeC.pppg++;
+        nodeB.pppg++ <--> { delay = 10ms; } <--> nodeD.pppg++;
+        nodeC.pppg++ <--> { delay = 10ms; } <--> nodeE.pppg++;
+        nodeD.pppg++ <--> { delay = 10ms; } <--> nodeF.pppg++;
+        nodeE.pppg++ <--> { delay = 10ms; } <--> nodeG.pppg++;
+        nodeF.pppg++ <--> { delay = 10ms; } <--> nodeH.pppg++;
+}
+#include "inet/common/INETDefs.h"
+#include "inet/networklayer/ipv4/Ipv4RoutingTable.h"
+#include "inet/networklayer/ipv4/Ipv4.h"
+#include "RoutingAlgorithm.h"
+#include <torch/script.h> // PyTorch model integration
+
+Define_Module(RoutingAlgorithm);
+
+void RoutingAlgorithm::initialize(int stage) {
+    if (stage == inet::INITSTAGE_ROUTING_PROTOCOLS) {
+        routingTable = getModuleFromPar<inet::Ipv4RoutingTable>(par("routingTableModule"), this);
+        algorithm = par("algorithm").stringValue();
+        scheduleAt(simTime() + par("updateInterval"), new cMessage("update"));
+    }
+}
+
+void RoutingAlgorithm::handleMessage(cMessage *msg) {
+    if (msg->isSelfMessage()) {
+        if (algorithm == "SPF") {
+            performSPF();
+        } else if (algorithm == "DDPGOR") {
+            performDDPGOR();
+        } else if (algorithm == "TD3OR") {
+            performTD3OR();
+        }
+        scheduleAt(simTime() + par("updateInterval"), msg);
+    } else {
+        delete msg;
+    }
+}
+
+void RoutingAlgorithm::performSPF() {
+    // Shortest Path First (SPF) routing logic
+    EV << "Running SPF routing algorithm" << endl;
+}
+
+void RoutingAlgorithm::performDDPGOR() {
+    // Load DRL model for DDPGOR routing
+    torch::jit::script::Module model;
+    try {
+        model = torch::jit::load("ddpgor_model.pt");
+    } catch (const c10::Error &e) {
+        EV << "Error loading DDPGOR model" << endl;
+        return;
+    }
+
+    // Define current network state (e.g., delay, packet loss, throughput)
+    double currentDelay = measureDelay();
+    double currentLoss = measurePacketLoss();
+    double currentThroughput = measureThroughput();
+    torch::Tensor state = torch::tensor({currentDelay, currentLoss, currentThroughput});
+
+    // Make routing decision using the model
+    torch::Tensor action = model.forward({state}).toTensor();
+    updateRoutingTable(action);
+}
+
+void RoutingAlgorithm::performTD3OR() {
+    // Load DRL model for TD3OR routing
+    torch::jit::script::Module model;
+    try {
+        model = torch::jit::load("td3or_model.pt");
+    } catch (const c10::Error &e) {
+        EV << "Error loading TD3OR model" << endl;
+        return;
+    }
+
+    // Define current network state
+    double currentDelay = measureDelay();
+    double currentLoss = measurePacketLoss();
+    double currentThroughput = measureThroughput();
+    torch::Tensor state = torch::tensor({currentDelay, currentLoss, currentThroughput});
+
+    // Make routing decision using the model
+    torch::Tensor action = model.forward({state}).toTensor();
+    updateRoutingTable(action);
+}
+
+void RoutingAlgorithm::updateRoutingTable(const torch::Tensor &action) {
+    int nextHop = action.item<int>();
+    inet::Ipv4Route *route = routingTable->getRouteFor(destination);
+    if (route) {
+        route->setNextHop(nextHop);
+        route->setMetric(1);
+    } else {
+        inet::Ipv4Route *newRoute = new inet::Ipv4Route();
+        newRoute->setDestination(destination);
+        newRoute->setNextHop(nextHop);
+        newRoute->setMetric(1);
+        routingTable->addRoute(newRoute);
+    }
+}
+
+double RoutingAlgorithm::measureDelay() {
+    return uniform(0.01, 0.1);  // Simulated delay
+}
+
+double RoutingAlgorithm::measurePacketLoss() {
+    return uniform(0.0, 0.05);  // Simulated packet loss
+}
+
+double RoutingAlgorithm::measureThroughput() {
+    return uniform(10.0, 100.0);  // Simulated throughput
+}
+[General]
+network = TreeAndMeshTopology
+**.algorithm = "SPF"  # Change to "DDPGOR" or "TD3OR" to compare routing algorithms
+**.updateInterval = 1s
+
+sim-time-limit = 120s
+output-scalar-file = "results.sca"
+
+# Log the metrics for comparison
+record-scalar = true
+void RoutingAlgorithm::logPerformanceMetrics() {
+    double delay = measureDelay();
+    double loss = measurePacketLoss();
+    double throughput = measureThroughput();
+    recordScalar("delay", delay);
+    recordScalar("packet_loss", loss);
+    recordScalar("throughput", throughput);
+}
+import matplotlib.pyplot as plt
+import pandas as pd
+
+# Load data from OMNeT++ scalar file
+data = pd.read_csv('results.sca')
+
+# Filter data for different algorithms and metrics
+spf_data = data[data['algorithm'] == 'SPF']
+ddpgor_data = data[data['algorithm'] == 'DDPGOR']
+td3or_data = data[data['algorithm'] == 'TD3OR']
+
+# Plot Time Delay vs Episode
+plt.figure()
+plt.plot(spf_data['episode'], spf_data['delay'], label="SPF")
+plt.plot(ddpgor_data['episode'], ddpgor_data['delay'], label="DDPGOR")
+plt.plot(td3or_data['episode'],
