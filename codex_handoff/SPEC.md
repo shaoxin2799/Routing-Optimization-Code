@@ -699,3 +699,386 @@ Per run (and per-agent tables saved for pooling):
 - The mock backend is never used for reported numbers; the report refuses runs whose
   manifest says `backend=mock`.
 - Every deviation from this spec goes into `DECISIONS.md` with a reason.
+
+---
+
+# Appendices: operational details (use these verbatim unless verification shows otherwise)
+
+## A. Models: where to get them and how to download
+
+All models come from Hugging Face. Pages: `https://huggingface.co/<model_id>`.
+
+| Key | HF model id | Page | Gated? | Approx. disk (bf16) | Role |
+|---|---|---|---|---|---|
+| qwen3-8b | `Qwen/Qwen3-8B` | https://huggingface.co/Qwen/Qwen3-8B | no | ~16 GB | persona (default) |
+| llama31-8b | `meta-llama/Llama-3.1-8B-Instruct` | https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct | **yes** (accept licence on the page, then use HF_TOKEN) | ~16 GB | diagnosis/black-box (default) |
+| phi4 | `microsoft/phi-4` | https://huggingface.co/microsoft/phi-4 | no | ~29 GB | diagnosis fallback |
+| qwen3-14b | `Qwen/Qwen3-14B` | https://huggingface.co/Qwen/Qwen3-14B | no | ~28 GB | E7 |
+| mistral-24b | `mistralai/Mistral-Small-24B-Instruct-2501` | https://huggingface.co/mistralai/Mistral-Small-24B-Instruct-2501 | check page | ~47 GB | E7 |
+| qwen25-72b-awq | `Qwen/Qwen2.5-72B-Instruct-AWQ` | https://huggingface.co/Qwen/Qwen2.5-72B-Instruct-AWQ | no | ~41 GB | E7 large (TP=2) |
+| llama33-70b | `meta-llama/Llama-3.3-70B-Instruct` | https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct | **yes** | ~140 GB (use FP8 via `--quantization fp8`) | E7 large alternative |
+
+Download (on server 2; models go to `$HF_HOME`, default `~/.cache/huggingface`; put it on a large disk):
+```bash
+pip install -U "huggingface_hub[cli]"
+export HF_HOME=/data/hf            # adjust to a disk with >= 300 GB free
+huggingface-cli login              # only needed for gated Llama models (paste HF token)
+for m in Qwen/Qwen3-8B microsoft/phi-4 Qwen/Qwen3-14B \
+         mistralai/Mistral-Small-24B-Instruct-2501 Qwen/Qwen2.5-72B-Instruct-AWQ \
+         meta-llama/Llama-3.1-8B-Instruct; do
+  huggingface-cli download "$m" --exclude "*.pth" "original/*" || echo "SKIP $m (gated or unavailable)"
+done
+```
+(`hf download <id>` is the newer equivalent CLI; either is fine.) Record `git rev` of each model
+(`huggingface_hub.model_info(id).sha`) in the run manifest.
+
+If a gated model is unavailable, `configs/models.yaml` falls back automatically: llama31-8b → phi4,
+llama33-70b → qwen25-72b-awq. Log the substitution in the manifest and in DECISIONS.md.
+
+Legacy option (only for the MABS replication, optional): Ollama `llama3:8b` via
+`ollama pull llama3:8b`; the OpenAI-compatible endpoint is `http://localhost:11434/v1`.
+
+## B. vLLM serving commands (`scripts/serve_vllm.sh`)
+```bash
+pip install vllm          # record the installed version (e.g. `python -c "import vllm;print(vllm.__version__)"`)
+
+# persona on GPU0
+CUDA_VISIBLE_DEVICES=0 vllm serve Qwen/Qwen3-8B --port 8000 \
+  --served-model-name persona --max-model-len 4096 --gpu-memory-utilization 0.90 \
+  --max-num-seqs 256 --seed 0
+
+# diagnosis + black-box on GPU1
+CUDA_VISIBLE_DEVICES=1 vllm serve meta-llama/Llama-3.1-8B-Instruct --port 8001 \
+  --served-model-name diag --max-model-len 8192 --gpu-memory-utilization 0.90 \
+  --max-num-seqs 256 --seed 0
+
+# E7 large: 72B-AWQ across both GPUs + persona squeezed on GPU0
+CUDA_VISIBLE_DEVICES=0 vllm serve Qwen/Qwen3-8B --port 8000 --served-model-name persona \
+  --gpu-memory-utilization 0.30 --max-model-len 4096
+CUDA_VISIBLE_DEVICES=0,1 vllm serve Qwen/Qwen2.5-72B-Instruct-AWQ --port 8001 \
+  --served-model-name diag --tensor-parallel-size 2 --gpu-memory-utilization 0.60 \
+  --max-model-len 8192 --quantization awq
+```
+Health check: `curl localhost:8000/v1/models`. The client reads endpoints from `configs/models.yaml`.
+
+**Structured output (version-dependent; implement both and auto-detect at startup):**
+- newer vLLM: `extra_body={"structured_outputs": {"json": <schema>}}`
+- older vLLM: `extra_body={"guided_json": <schema>}`
+- fallback: `response_format={"type":"json_schema","json_schema":{"name":"out","schema":<schema>}}`
+Qwen3 thinking off: `extra_body={"chat_template_kwargs": {"enable_thinking": False}}`.
+Per-request seed: `extra_body={"seed": int}` (derive with `hash((run_seed, week, pid, role)) % 2**31`
+via a stable hash, e.g. blake2b, not Python `hash`).
+
+## C. Environment file
+```yaml
+# environment.yml
+name: apabm
+channels: [conda-forge]
+dependencies:
+  - python=3.11
+  - pip
+  - pip:
+      - numpy>=1.26
+      - pandas>=2.2
+      - pyarrow>=15
+      - networkx>=3.2
+      - scipy>=1.12
+      - scikit-learn>=1.4
+      - statsmodels>=0.14
+      - pydantic>=2.6
+      - pyyaml>=6
+      - httpx>=0.27
+      - openai>=1.30
+      - tenacity>=8.2
+      - jinja2>=3.1
+      - tqdm
+      - rich
+      - matplotlib>=3.8
+      - seaborn>=0.13
+      - beautifulsoup4     # parse data index pages
+      - pytest
+      - pytest-xdist
+      - hypothesis         # property tests
+      - ruff
+      - huggingface_hub[cli]
+# vLLM is installed separately into the same env: pip install vllm  (needs CUDA 12 driver)
+```
+
+## D. Data: exact sources and download procedure
+
+### D.1 BRFSS (no login)
+| Item | URL |
+|---|---|
+| Documentation hub | https://www.cdc.gov/brfss/data_documentation/index.htm |
+| 2022 data & docs | https://www.cdc.gov/brfss/annual_data/annual_2022.html |
+| 2022 main XPT (64 MB zip, 326 vars) | https://www.cdc.gov/brfss/annual_data/2022/files/LLCP2022XPT.zip |
+| 2022 multiple-questionnaire version files (optional modules) | https://www.cdc.gov/brfss/annual_data/2022/llcp_multiq.html |
+| 2022 questionnaire (SD/HE module text) | https://www.cdc.gov/brfss/questionnaires/pdf-ques/2022-BRFSS-Questionnaire-508.pdf |
+| 2023 data & docs | https://www.cdc.gov/brfss/annual_data/annual_2023.html |
+| 2024 data & docs | https://www.cdc.gov/brfss/annual_data/annual_2024.html |
+
+Procedure (`apabm/data/download.py::brfss`):
+1. GET the year's index page; collect every href ending in `.zip` whose text or name contains
+   `XPT` and `LLCP`; also the codebook (`codebook*.html`/`.zip`/`.pdf`) and the variable layout.
+2. GET the `llcp_multiq.html` page; download the version XPT files (names like `LLCP22V1_XPT.zip`,
+   `LLCP22V2_XPT.zip`; verify) — optional modules such as SD/HE may live there together with
+   version-specific weights (`_LCPWTV1`, `_LCPWTV2`, …; verify).
+3. Load with `pandas.read_sas(path, format="xport")`. Search all loaded files for `SDLONELY` and
+   `EMTSUPRT`; use the file(s) where they are non-missing, with the matching weight.
+4. Write `data/interim/brfss_<year>.parquet` and append to `data/MANIFEST.json`.
+Reference implementation ideas for parsing BRFSS/ATUS: https://asdfree.com/behavioral-risk-factor-surveillance-system-brfss.html
+and https://asdfree.com/american-time-use-survey-atus.html (R code; use only as a guide).
+
+### D.2 ATUS (no login; needs User-Agent with contact e-mail)
+| Item | URL |
+|---|---|
+| ATUS data hub | https://www.bls.gov/tus/data.htm |
+| Multi-year 2003–2024 page | https://www.bls.gov/tus/data/datafiles-0324.htm |
+| Multi-year 2003–2025 page (use if present) | https://www.bls.gov/tus/data/datafiles-0325.htm |
+| Activity-summary data dictionary (example) | https://www.bls.gov/tus/dictionaries/atussmcodebk0524.pdf |
+| Interview data dictionary (example) | https://www.bls.gov/tus/dictionaries/atusintcodebk0324.pdf |
+
+Expected file names on the multi-year page (0324 shown; 0325 analogous):
+`atusresp-0324.zip` (respondent), `atusrost-0324.zip` (roster), `atuswho-0324.zip` (who),
+`atussum-0324.zip` (activity summary), `atuscps-0324.zip` (CPS), `atusact-0324.zip` (activity).
+Resolve the actual hrefs by parsing the page (do not hard-code the path prefix). Each zip holds a
+CSV (`.dat`) plus SAS/SPSS/Stata readers.
+
+Key fields (verify in dictionaries): `TUCASEID` (join key), `TUYEAR`, `TEAGE`, `TESEX`,
+`TUFINLWGT` (final weight), roster `TULINENO`/`TERRP` (household composition → lives alone when
+only the respondent is listed), who-file `TUWHO_CODE` (codes for "alone" = 18/19 — verify),
+activity-summary columns `t12xxxx` (socializing, relaxing, leisure — keep socializing/communicating
+`t1201xx` and attending events `t1202xx`, verify), `t14xxxx` (religious), `t15xxxx` (volunteer),
+CPS disability items `PEDISPHY`, `PEDISOUT` (available 2008+; verify).
+
+### D.3 What is deliberately NOT downloaded this round
+NSHAP (https://www.icpsr.umich.edu/sites/icpsr/view/collections/706), HRS
+(https://hrs.isr.umich.edu/data-products), SHARE (https://share-eric.eu/data/data-access),
+CHARLS (https://charls.pku.edu.cn/en), ELSA (https://www.elsa-project.ac.uk/accessing-elsa-data)
+— all require login/registration. Only the `NshapSource` stub is built.
+
+## E. Algorithms (pseudocode)
+
+### E.1 Run loop
+```
+init: pop = sample_population(seed); net = build_network(pop, seed); state = init_state(pop)
+policy = controller.initial_policy()
+for day in 0..T-1:
+    if day >= warmup and day % 7 == 0:            # decision point (week w)
+        obs = env.observe(state, history)           # Observation only
+        if env.feedback_enabled:
+            speakers = voice.sample(state, rng["voice"])
+            msgs = persona.generate(speakers, state, week_summary, rng["feedback_noise"])  # LLM-A
+            state.history.feedback[w] = msgs          # gold labels saved separately (hidden)
+        policy, audit = controller.step(obs, msgs_visible)   # LLM-B inside if needed
+        schedule = interventions.schedule_week(policy, obs, budget, rng["alloc"])
+    env.step_day(state, schedule[day % 7], rng)     # order below
+    if day % 28 == 0: screening.update(state, rng["screen"])
+compute weekly utility, gold labels, metrics
+```
+Daily step order (fixed): (1) events of the day → attendance draws → tie formation among attendees;
+(2) visits of the day → decline draws → accepted visits; (3) informal interactions over ties and
+household; (4) state updates ℓ, s, f (§5.2) using today's a_i, v_i, x_i, c_i; (5) tie decay; (6) log.
+
+### E.2 Named RNG streams
+`streams = SeedSequence(seed).spawn` keyed by a stable hash of the name. Shared across conditions
+(common random numbers): `population, network0, dynamics, screen, attendance, decline, voice,
+feedback_noise, network_dyn`. Condition-specific: `alloc, controller`. Each draw consumes from its
+own stream only, so different policies do not shift the other streams.
+
+### E.3 Largest-remainder quota + allocation (§7.3)
+```
+raw = π_g * B_v; q_g = floor(raw); give remaining slots to largest (raw - q_g), ties by segment id
+for g in segments (fixed order): rank members by p_i desc (ties by pid); assign up to v_max each
+leftover slots → global ranking over all residents not yet at v_max
+visits are placed on weekdays round-robin (Mon..Fri) in rank order
+```
+
+### E.4 Bounded update + simplex projection
+```
+Δ = clip(π* - π, -δ, δ); π' = π + Δ
+π' = project_to_simplex(π')     # Duchi et al. 2008 sort-based Euclidean projection
+if max|π' - π| > δ + 1e-9: scale (π' - π) down uniformly so the cap holds, re-project; log "cap_clip"
+```
+
+### E.5 IPW / Hájek estimates (C7) vs naive (C6)
+```
+r̂_g ← 0.3 * |R_g|/n_g + 0.7 * r̂_g ; r̂_g = max(r̂_g, 0.05)
+S_g = R_g ∪ Flagged_g
+D_g = mean_{i∈S_g} d_i ; ŝ_g = mean_{i∈S_g} sat_i          (segment means)
+population event demand E = Σ_g n_g * Ē_g / N                (weights by population)
+naive: pool all responders, weights by |R_g| (voices), no flagged set
+```
+(The Horvitz–Thompson form Σ_{i∈R_g} y_i / r̂_g / n_g is logged too, for the IPW unit test.)
+
+### E.6 Persona-cluster GMM
+```
+X = standardize(features) on a 20k weighted resample (rng "population", fixed seed 12345)
+for K in 3..7: fit GaussianMixture(K, covariance_type="full", n_init=5, random_state=0); record BIC
+K* = argmin BIC; if two BICs within 1%, pick smaller K
+assign each person to argmax posterior; save means, covariances, proportions, BIC table
+```
+
+### E.7 Predictive mean matching (ATUS → BRFSS)
+```
+model_y = HistGradientBoostingRegressor(max_depth=3, learning_rate=0.05, max_iter=300)
+fit on ATUS 65+ with sample_weight = TUFINLWGT; 5-fold CV R² reported
+ŷ_atus = cross-fitted predictions; ŷ_brfss = model_y.predict(BRFSS covariates)
+for each BRFSS person: donors = 5 ATUS records with nearest ŷ_atus to ŷ_brfss; draw one (rng "fusion")
+y_brfss = donor's observed y     (do this separately for sa and tw, using the SAME donor for both
+                                   to keep their joint distribution: match on ŷ_sa, ŷ_tw jointly by
+                                   Mahalanobis distance)
+```
+
+### E.8 Virtual-RCT calibration (β_v; β_e analogous)
+```
+target d_v; lo, hi = 0.0, 0.2
+repeat 30 times (bisection):
+    β = (lo+hi)/2
+    for s in dev seeds 0..9: simulate 12 weeks, N=400, 1:1 arms, treatment = 1 accepted visit/week
+                             (declines disabled in the trial); d_s = (mean ℓ_ctrl - mean ℓ_trt)/pooled SD
+    d = mean_s d_s ; if d < target: lo = β else hi = β
+freeze β_v = (lo+hi)/2 with report (d per seed, final d)
+```
+
+### E.9 Myopic oracle (C10)
+```
+visits: repeat B_v times: pick resident with max m_v (§5.5, true values, current planned V) with
+        m_v > 0 and V < v_max; tie by pid; update planned V
+events: for n in 0..B_e: copy env, simulate 7 days with the visit plan and n events using
+        cloned RNG streams (2 rollouts), score Σ_i u_i^w; pick best n
+```
+
+### E.10 Counterfactual influence (E6c)
+For C7: for each week and each received message j, recompute the controller output with message j
+removed (parser outputs from the log; no new LLM calls) → influence_j = ||π(with) − π(without)||₁ +
+|Δn_e|. For C8, influence needs new LLM calls: sample 20 messages/run, re-query with the message
+removed (logged as extra calls).
+
+### E.11 Statistics
+- Wilcoxon signed-rank (`scipy.stats.wilcoxon`, paired by seed, two-sided); Holm across the family of
+  contrasts in one table; rank-biserial r = (W+ − W−)/(W+ + W−).
+- Bootstrap: resample seeds with replacement 10,000 times; percentile 95% CI of the mean paired diff.
+- Hypervolume (2D, maximize W, minimize visits): sort non-dominated points; sum rectangles to
+  reference point (max visits over all runs, W of C0).
+
+### E.12 PPO (optional C11)
+stable-baselines3 PPO; observation = per-segment [n_g/N, r̂_g, D_g, ŝ_g, mean ℓ_obs, declines] + current
+policy + week/T; action = Box → softmax shares + discrete n_e via rounding; reward = weekly mean u
+(observable proxy is NOT allowed to be the hidden u at deploy time — train on dev seeds with hidden
+reward, evaluate on eval seeds; state this caveat in the paper). 2e5 env steps, default hyper-params.
+
+## F. Remaining concrete definitions
+
+### F.1 Felt-signal thresholds (persona input)
+| Signal | Condition (true state) | Phrase |
+|---|---|---|
+| lonely_high | mean ℓ this week > 0.6 | "you felt quite lonely this week" |
+| lonely_mid | 0.4–0.6 | "you felt a little lonely at times" |
+| lonely_low | < 0.4 | "you felt fairly connected" |
+| lonely_trend | Δ mean ℓ vs last week < −0.03 / > +0.03 | "a bit better than last week" / "a bit worse than last week" |
+| visits_too_many | V^w > τ | "the visits felt like too much / intrusive" |
+| visits_want_more | true_visit_pref = more and V^w ≤ τ | "you would welcome more visits" |
+| visits_fine | otherwise | (omit) |
+| events_uncomfortable | A^w > 0 and μ < −0.2 | "the group activity was uncomfortable" |
+| events_want_more | true_event_pref = more | "you would enjoy more activities" |
+| events_too_many | true_event_pref = less and n_e ≥ 2 | "there is too much pressure to join activities" |
+Noise: each included signal is dropped with prob η/2 and flipped to its opposite with prob η/2.
+
+### F.2 Keyword lexicon (C5), case-insensitive regex
+- visit_more: `\b(more (visits|company|visitors)|come (by|round|over) more|nobody (visits|comes)|would (love|like) (a )?visit|lonely)\b`
+- visit_less: `\b(too many visits|(leave|let) me (alone|be)|don'?t need (the )?visits|(stop|fewer) visits|privacy|intrusive|too much)\b`
+- event_more: `\b(more (activities|events|outings|groups)|enjoy(ed)? the (group|activity)|love the (group|activities))\b`
+- event_less: `\b(don'?t like (the )?(group|activities)|not (a|much of a) (group|social) person|too many activities|pressure to join)\b`
+- satisfaction: 0.8 if only positive matches, 0.2 if only negative, 0.5 otherwise.
+Conflicts (both more and less matched) → "same".
+
+### F.3 Full prompt: blackbox_informed (C8/C9)
+```
+[system] You are the policy planner of a community aged-care service. You decide next week's
+service plan. Return only JSON matching the schema.
+[user]
+Goal: maximise residents' well-being — mainly lower loneliness — while respecting what residents
+want (do not over-visit people who do not want visits; offer activities people value), and be fair
+across groups (do not neglect groups with low satisfaction or residents who do not speak up).
+Weekly budget: {B_v} home-visit slots (max {v_max} per resident) and up to {B_e} group events.
+{C9 only: You may change each segment share by at most {delta} and the number of events by at most 1 per week.}
+Segments (observable groups):
+{table: segment_id | description | n | response rate | visit more/same/less | event more/same/less |
+ mean satisfaction | mean screening loneliness | declines last week | silent high-risk flags}
+Last 4 weeks: {table: week | n_events | shares | mean satisfaction | mean screening loneliness}
+Current plan: n_events={n_e}, shares={shares}
+Sample of resident messages this week (by segment):
+{segment_id: "message" …  (≤30 total)}
+Return JSON: {"n_events": int in [0,{B_e}], "segment_shares": {segment_id: float ≥0, summing to 1},
+"rationale": "≤ 60 words"}
+```
+Post-processing: renormalise shares; missing segments get 0; invalid → retry once → previous plan.
+
+### F.4 Full prompt: feedback_parse
+```
+[system] You are the assessment module of a community aged-care service. Return only JSON.
+[user] Resident group: {segment description}.
+Message from the resident: "{message}"
+Infer from the message only:
+- satisfaction (0 = very unhappy, 1 = very happy with the service),
+- visit_pref: does the resident want more, the same, or fewer home visits?
+- event_pref: more, same, or fewer group activities?
+- urgency (0–1): how urgently should staff follow up?
+- confidence (0–1).
+If the message gives no evidence for a field, use "same" and a low confidence.
+```
+
+### F.5 Full prompt: silent_screen
+```
+[system] You are the screening module of a community aged-care service. Return only JSON.
+[user] This resident has not given feedback for {k} week(s). Service record:
+age band {age_band}; lives alone: {yes/no}; mobility difficulty: {yes/no};
+latest loneliness screening {l_obs:.2f} (0–1, higher = lonelier), change since previous {dl:+.2f};
+group activities attended in last 4 weeks: {att}; visits accepted/declined in last 4 weeks: {acc}/{dec}.
+Assess the risk that this resident is lonely and would benefit from a visit.
+Return {"risk": "low|medium|high", "priority_visit": 0–1, "reason": "≤ 25 words"}.
+```
+
+### F.6 legacy_diagnosis and blackbox_legacy
+Copy the two templates from the MABS paper, Appendix C, verbatim (reproduced here):
+```
+You are a diagnostic module for an elderly-care simulation.
+Assess the following agent state and return only valid JSON.
+Agent state: {loneliness, frailty, stress, energy}
+Recent interactions: {interaction_count_7d, social_event_count_7d}
+Network position: {degree, relative_degree, isolation_flag}
+Required fields: risk_loneliness: low|medium|high; risk_frailty: low|medium|high;
+primary_driver: short string; priority_social: number in [0,1]; priority_visit: number in [0,1];
+confidence: number in [0,1]
+```
+```
+You control policy parameters in an elderly-care simulation.
+Given aggregate statistics {r, p_s, p_v} and current parameters {theta_s, theta_t, theta_p},
+return only valid JSON with: theta_s: number in [0.8,1.5]; theta_t: number in [0.4,0.6];
+theta_p: number in [0.15,0.5]. Do not include any additional text.
+```
+Legacy aggregates: diagnosed set H = agents with ℓ > 0.6 at the decision day (log |H|);
+r = |{i∈H: risk_loneliness = high}| / N (also log the ratio over |H|); ps, pv = means over H;
+if H is empty, no update.
+
+### F.7 Segment merge order
+Segment id = `A{lives_alone}{mobility_limit}{age80}` e.g. `A101`. If a cell has < 5 members, merge
+it into the cell that differs only in `age80`; if still < 5, into the cell differing only in
+`mobility_limit`; ids of merged cells are joined with `+`. Merging is fixed at t=0 per seed.
+
+### F.8 Example experiment config (`apabm/experiments/configs/E1.yaml`)
+```yaml
+exp: E1
+env: {type: budgeted, N: 200, T_days: 182, warmup_days: 14, budget: {visits_per_capita: 0.2, events: 3}}
+population: {source: brfss_atus, mapping: M0}          # synthetic | brfss_atus
+dynamics: {file: configs/calibrated.yaml}
+voice: {v0: 0.5, s_l: 0.6, s_f: 0.3, s_c: 0.3}
+feedback: {eta: 0.2, exaggerators: 0.0}
+controller_defaults: {delta: 0.05, event_threshold: 0.15, gamma_d: 0.2, gamma_r: 0.2, v_max: 2}
+models: {persona: qwen3-8b, diag: llama31-8b}
+conditions: [C0, C1, C2, C3, C4, C5, C6, C7u, C7r, C7n, C8, C9, C10]
+seeds: {range: [1000, 1029]}
+parallel: {max_concurrent_runs: 12}
+backend: vllm
+```
