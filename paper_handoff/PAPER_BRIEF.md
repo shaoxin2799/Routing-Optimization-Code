@@ -13,6 +13,87 @@ Fallbacks: IJCAI (7+2 pages) or JAAMAS (journal).
 
 ---
 
+
+## 0. Revision v2: framing and wording (authoritative; supersedes conflicting text below)
+
+**Headline:** *Adaptive policies observe voices, not preferences.*
+> When feedback is selective, policy adaptation can systematically over-represent those who
+> speak. We separate participation (who speaks), interpretation (what is said), evidence
+> weighting, and welfare choice, which makes this representation gap measurable and
+> controllable under fixed resources.
+
+This replaces "LLMs understand, rules decide" as the spine. Keep that idea as a design
+principle inside the method section, not as the headline.
+
+**The core distinction to carry through the paper:** Need ≠ Voice ≠ Policy influence;
+participation ≠ interpretation.
+
+**Data wording (use exactly):**
+- BRFSS: "public-use microdata of older adults in jurisdictions that fielded the Social
+  Determinants and Health Equity module", **not** "nationally representative loneliness".
+- ATUS: "activity profiles" or "revealed social participation", **never** "preferences". Latent
+  intervention preferences are generated conditionally on activity profiles through a mapping φ
+  with weak/medium/strong/random regimes. Sentence to include:
+  *"We do not equate observed activity with stated intervention preference; ATUS constrains
+  heterogeneous activity profiles, and latent preferences are generated conditionally on these
+  profiles and varied in sensitivity analyses."*
+- NSHAP: "network statistics calibrated to NSHAP" (a synthetic network from ego-network roster
+  statistics), **not** "the NSHAP network". The UCLA-3 construct calibrates the loneliness distribution.
+  R1–R3 (5-year spacing) constrain **long-run persistence only**. Short-term dynamics are a
+  modelling assumption chosen to be compatible with it. Never claim NSHAP gives daily dynamics.
+- Intervention effects: literature ranges (low/mid/high), with conclusions checked across all three.
+- Silence: "controlled missingness mechanisms" (MAR-by-segment, need-dependent,
+  dissatisfaction-dependent), **not** estimates of real response rates.
+- Present the data design as three layers: population grounding (BRFSS) → social grounding
+  (ATUS activity profiles + NSHAP network) → dynamic calibration (NSHAP persistence + intervention
+  literature). Do not present it as a list of datasets.
+
+**Persona check wording:** E8 is "persona state-expression fidelity". It tests whether
+persona-generated feedback preserves the intended latent-state distributions across models and
+population strata (E8a state recovery, E8b distributional calibration, E8c cross-model
+generator × interpreter matrix). Never write "the personas are valid" or "realistic residents".
+
+**Figure plan (replaces §11 order):**
+- **Fig. 1**: *"Selective feedback separates population need from observed voice."* It is not
+  an architecture diagram and must not resemble the MABS figure. Four regions left→right:
+  1. heterogeneous residents (glyphs with need/preference bars; one speaks, one is silent "…";
+     a faint grounding bar "BRFSS · ATUS · NSHAP");
+  2. selective feedback (a funnel "who speaks", then the LLM "what is said");
+  3. explicit aggregation (structured signals → IPW / silent handling → welfare rule; notation
+     W, W_min, W_silent; C(a) ≤ B);
+  4. budgeted intervention (visit / group / outreach icons) looping back to residents.
+  **Solid lines** = observable/control path; **dashed lines** = simulation-only state (latent
+  preference, true loneliness, counterfactual welfare). Footnote in the figure: "outcomes are
+  evaluated on hidden simulator states".
+- **Fig. 2**: representation distortion: W_silent and W_min vs silence strength and regime, for
+  response-only, IPW, screen, and IPW+screen (E3). This is the first result.
+- **Fig. 3**: resource-matched welfare frontier: resource use (x) vs W (y); the static hull vs
+  the methods (E2). The main table must also report visits beside every welfare number, so the
+  "is it just more visits?" question is answered on the first results page.
+- **Fig. 4**: interpretation × weighting: does IPW amplify LLM parse errors? (E4b), plus the
+  weight-cap effect.
+- Welfare-criterion trade-off, audit, model grid and sensitivity go to tables or supplementary material.
+
+**Honesty points that must appear:**
+- IPW corrects between-segment non-response only. Under need- or dissatisfaction-dependent
+  silence (MNAR) it can fail; report where it fails. Silent screening and the explicit welfare
+  choice are the mitigations, and they are measured, not assumed.
+- IPW can amplify interpretation errors in low-response groups. Weight caps are a
+  bias–variance choice, and we report it (E4b).
+
+**Revised contribution list:**
+1. Formulation of preference-aware adaptation under **selective feedback**, with an explicit
+   information boundary (latent state / expression / observable evidence / aggregation / policy)
+   and evaluation on hidden states.
+2. A separation of participation, interpretation, weighting and welfare choice. The LLM
+   interprets; explicit rules weight, aggregate and act within a budget, and every step is logged.
+3. Properties: replay/attribution, bounded sensitivity, IPW under MAR-by-segment and its failure under MNAR.
+4. A data-grounded controlled study: representation distortion, resource-matched frontiers,
+   interpretation × weighting interaction, state-expression fidelity, and sensitivity to the
+   preference mapping, effect sizes and silence regimes.
+
+---
+
 ## 1. One-sentence thesis
 > When a care policy must adapt to people with **diverse and partly unspoken preferences**, the
 > LLM should be used to **understand people** (turn free-text feedback and service records into

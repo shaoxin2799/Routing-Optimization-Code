@@ -4,7 +4,7 @@ Place this file and `SPEC.md` at the root of a new (private) repository. `SPEC.m
 single source of truth.
 
 ## Before coding
-- Read `SPEC.md` completely. Build milestones M0 → M8 in order (SPEC §14).
+- Read `SPEC.md` completely. **§0.3 (Revision v2) is authoritative**: where it conflicts with later sections, §0.3 wins. Build milestones M0 → M8 in order (SPEC §14).
 - After each milestone: run `make lint test`, then append a dated entry to `PROGRESS.md`
   (what was built, test status, open issues).
 - When the spec is ambiguous, choose the simplest option consistent with it and record the

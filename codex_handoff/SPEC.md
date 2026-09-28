@@ -53,6 +53,103 @@ Evaluation always uses **hidden ground-truth utilities**, never an LLM judgement
 | RQ4 Robustness | Noisy or exaggerated feedback | The separated architecture degrades boundedly, and less than black-box |
 | RQ5 Need for LLM | Free text + LLM vs structured survey vs keyword parser | The LLM parses indirect feedback better and finds silent risk better |
 
+
+### 0.3 Revision v2: authoritative, supersedes any conflicting text below
+
+**Headline of the paper:** *Adaptive policies observe voices, not preferences.* When feedback is
+selective, adaptation can over-represent those who speak. We separate (i) who speaks,
+(ii) what is said and how it is interpreted, (iii) how evidence is weighted, and (iv) which
+welfare criterion is applied, under a fixed budget. This makes the representation gap
+measurable and controllable.
+
+#### 0.3.1 Frozen variable layers and information boundary
+Every variable belongs to exactly one layer. `Observation` may contain only variables marked
+**O**. Evaluator-only (**E**) and hidden (**H**) variables must never reach a controller except
+C10 (oracle).
+
+| Layer | Variables | Visibility |
+|---|---|---|
+| L0 Data | BRFSS person attributes X_i; ATUS activity profile A_i; NSHAP network statistics ψ, UCLA-3 distribution, long-run persistence r5; literature effect ranges | build-time only |
+| L1 Latent state Z_i | ℓ_i(t), s_i, f_i, ties/network, A_i, preferences (μ_i, λ_i, τ_i), response propensity, silence regime parameters, exaggerator flag, persona card | **H** |
+| L2 Expression | R_{i,w} (spoke or not), message y_{i,w} | R and y: **O**; felt signals: **H**; gold labels (true_visit_pref, true_event_pref, true_satisfaction): **E** |
+| L3 Observable evidence O_t | age band, sex, lives_alone, mobility_limit, cog_limit, segment id, screening ℓ_obs, attendance, visits allocated/accepted/declined, weeks since feedback, parsed signals (derived), screening flags (derived) | **O** |
+| L4 Aggregation | r̂_g, weights w_g, D_g, ŝ_g, welfare criterion, weight cap | **O** (derived) |
+| L5 Policy | n_e, π_g, allocations, budget B | **O** |
+| Evaluation | u_i^w, W, W_min, W_silent, burden, alignment, parse accuracy | **E** |
+
+A test (`test_information_boundary`) walks every controller input and asserts that only
+L3–L5 fields are present.
+
+#### 0.3.2 Data roles (replaces §3.3–3.6 where they conflict)
+- **BRFSS = population backbone.** Wording in code, docs and the paper: "older adults in
+  jurisdictions that fielded the SD/HE module". Never "nationally representative loneliness".
+  Record which states and years are included.
+- **ATUS = activity behaviour, not preference.** Rename `sa` → `activity_profile` (vector: social
+  minutes, religious/civic/volunteer minutes, share of time alone, share of time with
+  non-household others).
+  - ATUS directly calibrates **behaviour**: the baseline event-attendance propensity
+    b_i = logit of the fused social-participation percentile (it enters attendance, §5.4).
+  - **Preferences are latent**: μ_i = f(A_i, X_i; φ). φ has regimes **weak / medium / strong**
+    (coefficients ×0.5 / ×1 / ×1.5 of M0 in §4.5) plus **random** (permutation). Report all
+    regimes (E9).
+  - Attendance becomes `P = σ(b_i + κ_μ·μ_i − 1.5 f_i + 0.8 n_e/B_e)` with κ_μ = 1.0.
+- **NSHAP = social structure + long-run persistence** (when the R3 files are provided; the
+  pipeline must still run without them):
+  - **Network**: estimate ψ from the R3 social-network roster: roster size distribution,
+    kin/non-kin shares, contact-frequency distribution per tie type, and closeness. Generate
+    a **synthetic** network G ~ 𝒢(ψ). Wording: "network statistics calibrated to NSHAP",
+    never "the network is taken from NSHAP". Tie types set w_ij and daily contact
+    probabilities (map the reported contact frequency to a daily probability).
+  - **Loneliness construct**: UCLA-3 (lack companionship, left out, isolated) → score
+    distribution by strata (age band × lives alone × functional limitation). Used in E8b.
+  - **Persistence**: with R1–R3 (downloaded later), estimate the 5-year correlation r5 of the
+    UCLA-3 score. Interpret r5 as the stable-trait variance share. Set the initial
+    decomposition ℓ_i(0) = ℓ̄_i + transient, with Var(ℓ̄)/Var(ℓ) = r5, and set σ_ℓ so that
+    the stationary transient variance equals (1−r5)·Var(ℓ). **The daily reversion α is NOT
+    identified by NSHAP.** Keep α as a sensitivity parameter {0.01, 0.02, 0.05}. Before R1/R2
+    arrive, use r5 = 0.5 and flag it.
+  - Keys: `SU_ID` links rounds; the weight is `WEIGHT_ADJ` (round-specific).
+- **Intervention effects** stay as literature ranges: β_visit ∈ {low, mid, high}, via virtual-RCT
+  targets d_v ∈ {0.1, 0.2, 0.4}. Main conclusions must be checked across all three (E9).
+
+#### 0.3.3 Silence as a controlled mechanism (replaces §5.6)
+`P(R_{i,w}=1) = σ(α0 + α_g[seg_i] + α_L·ℓ_i + α_F·f_i + α_C·cog_i + α_P·dissat_i)`, where
+dissat_i = clip(−(u_i^{w−1} − u_i^{w−2})/0.05, −1, 1) (a recent drop in own utility).
+α0 is solved per regime so that the mean response rate is 0.5 at t=0.
+
+| Regime | Setting | Meaning |
+|---|---|---|
+| S0 MAR-segment | α_g ~ spread of ±0.8 across segments; α_L=α_F=α_C=α_P=0 | response depends only on the observable group (IPW is correct) |
+| S1 need-dependent (default) | α_L = −κ, α_F = −0.5κ, α_C = −0.5κ, with silence strength κ ∈ {0, 1, 2, 3} | lonelier/frailer people speak less (MNAR) |
+| S2a dissatisfied-silent | α_P = −1.5 | unhappy residents disengage |
+| S2b dissatisfied-loud | α_P = +1.5 | complainers dominate |
+
+The paper must call these *controlled missingness mechanisms*, not estimates of real response rates.
+
+#### 0.3.4 IPW safeguards (extends §7.4)
+- Stabilized weights w_g = (p̄ / r̂_g), where p̄ is the overall response rate, capped at
+  w_max ∈ {3, 5, ∞}; the default is 5.
+- Log the effective sample size per segment. If fewer than 3 responders and no flags,
+  shrink D_g toward the population mean D̄ with weight k/(k+3), where k is the evidence count.
+
+#### 0.3.5 New and renamed experiments (replace the E8 row; add E4b; extend E3)
+- **E3** now crosses silence regime {S0, S1(κ=0..3), S2a, S2b} × {C4, C5, C6, C7r, C8}.
+- **E4b Interpretation × weighting (new)**: inject parse errors (flip each parsed label with
+  probability ε_p ∈ {0, 0.1, 0.2, 0.3}) × weighting {naive (C6), IPW w_max=∞, IPW w_max=5,
+  IPW w_max=3} × silence {S0, S1(κ=2), S2a} → metrics W_silent, W_min, policy error
+  ‖π − π_oracle-share‖₁. Question: does IPW amplify interpretation error?
+- **E8 Persona state-expression fidelity** (renamed; replaces "persona validity"):
+  - E8a state recovery: hidden state → persona text → parser → recovered state. Report
+    Spearman ρ and monotonicity of recovered loneliness vs hidden ℓ, and macro-F1 of the
+    preference labels.
+  - E8b distributional calibration: the synthetic UCLA-3-style score (parser reads a persona's
+    answer to the three UCLA-3 items) vs the NSHAP R3 distribution, stratified by X. Before NSHAP
+    is available, use the BRFSS single item.
+  - E8c cross-model matrix: generator ∈ {Qwen3-8B, Llama-3.1-8B (or phi-4), Mistral-Small-24B} ×
+    interpreter ∈ the same set, so that the pipeline is never read back only by its own family.
+  - Wording: "tests whether persona-generated feedback preserves the intended latent-state
+    distributions across models and strata". Never "persona validity" or "realistic residents".
+
 ---
 
 ## 1. Scope of this build round
@@ -261,7 +358,7 @@ defaults and sensitivity range in §5.2. Label every result "pre-NSHAP".
 |---|---|---|---|
 | Target visit effect (standardized mean difference after a 12-week virtual RCT) | d_v = 0.20 | 0.10–0.40 | Loneliness-intervention meta-analyses (e.g. Masi et al. 2011, PSPR) report small effects. Verify the exact values from the paper before writing them into the text |
 | Target event effect (for attenders with μ>0) | d_e = 0.15 | 0.05–0.30 | same |
-| Loneliness reversion α | 0.02/day | {0.01, 0.02, 0.05} | to be calibrated from NSHAP later |
+| Loneliness reversion α | 0.02/day | {0.01, 0.02, 0.05} | not identified by NSHAP (5-year spacing); sensitivity only. NSHAP constrains r5 (§0.3.2) |
 | Mean core network size | 3.5 | 2.5–4.5 | to be replaced by NSHAP roster |
 
 ---
@@ -605,11 +702,12 @@ paired comparisons are valid.
 | E1 main | RQ1, RQ3 | N=200, default budget, s_ℓ=0.6, η=0.2, x=0 | C0–C10 (C7 × u, r, n) | 30 |
 | E2 budget/Pareto | RQ1 | 5 budget levels | C2 grid, C3, C7r, C8, C10 | 20 |
 | E3 voice bias | RQ2 | s_ℓ ∈ {0, 0.3, 0.6, 0.9} | C4, C5, C6, C7r, C8 | 20 |
+| E4b interp × weighting | RQ4/RQ2 | see §0.3.5 | C6, C7r variants | 20 |
 | E4 robustness | RQ4 | η ∈ {0, 0.2, 0.4} × x ∈ {0, 0.1, 0.3} | C7r, C8, C9 | 20 |
 | E5 welfare criteria | RQ3 | taken from E1 | C7u, C7r, C7n | (E1) |
 | E6 audit | RQ3 | (a) replay the same run from its LLM log → the policy must be identical; (b) 5 fresh re-samples of the LLM at T=0.1 and at T=0.7 → policy variance; (c) leave-one-feedback-out counterfactual influence | C7r, C8 | 20 |
 | E7 models | generality | persona ∈ {Qwen3-8B, Llama-3.1-8B/phi-4} × diagnosis ∈ {Llama-3.1-8B/phi-4, Qwen3-14B, Mistral-Small-24B}, plus 72B diagnosis | C7r, C8 | 10 |
-| E8 persona validity | validity | (a) at t=0, the persona LLM answers the BRFSS loneliness item ("How often do you feel lonely?" 5 options); compare with source BRFSS by cluster (Wasserstein, KS); (b) parser accuracy vs gold labels (C5 keyword vs LLM parse) including indirect-style personas; (c) persona consistency over 4 weeks | persona + parse | 5 |
+| E8 state-expression fidelity | validity | see §0.3.5 (E8a state recovery, E8b distributional calibration vs NSHAP/BRFSS, E8c cross-model matrix) | persona + parse | 5 |
 | E9 sensitivity | robustness | mapping ∈ {M0, M1, M2, M_rand} × effects d_v ∈ {0.1, 0.2, 0.4} × α ∈ {0.01, 0.02, 0.05} (one-at-a-time around the default); also δ ∈ {0.02, 0.05, 0.1} and the event threshold, **reporting rule-firing counts** | C2(Max), C7r, C8, C10 | 10 |
 | E10 scale | scalability | N ∈ {200, 500, 1000} | C7r, C8 | 5 |
 | L legacy | replication | §8.1 | L-* | 4 + 30 |
@@ -669,6 +767,8 @@ Per run (and per-agent tables saved for pooling):
 11. `test_population_schema`: synthetic and BRFSS+ATUS builders emit the identical schema.
 12. `test_metrics_toy`: hand-computed toy example for every metric.
 13. `test_simplex_projection` and `test_bounded_update`.
+15. `test_information_boundary`: every controller input contains only L3–L5 fields (§0.3.1).
+16. `test_ipw_weight_cap`: stabilized weights never exceed w_max; shrinkage is applied when evidence < 3.
 14. `test_gold_labels`: the marginal-utility sign matches a finite-difference simulation on toy agents.
 
 ## 13. Run manifest and outputs
