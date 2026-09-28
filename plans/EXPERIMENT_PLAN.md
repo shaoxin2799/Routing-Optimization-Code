@@ -169,7 +169,7 @@ single-factor removals from C7r.
 
 ## 5. Experiments
 
-Seeds: dev 0–9; eval 1000–1039. Eval seeds are used only after `prereg-v1`.
+Seeds: dev 0–9; eval seeds are reserved as 1000–1049 (experiments use the first n they need, e.g. 1000–1029 for n=30). Eval seeds are used only after `prereg-v1`.
 
 | Exp | Purpose | Factors | Conditions | Seeds | Output |
 |---|---|---|---|---|---|

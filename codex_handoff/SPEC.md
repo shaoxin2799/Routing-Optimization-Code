@@ -150,6 +150,13 @@ The paper must call these *controlled missingness mechanisms*, not estimates of 
   - Wording: "tests whether persona-generated feedback preserves the intended latent-state
     distributions across models and strata". Never "persona validity" or "realistic residents".
 
+
+#### 0.3.6 Alignment with `plans/EXPERIMENT_PLAN.md`
+The scientific protocol (gates G0–G5, `prereg-v1` freeze, primary endpoints, E1b factorial
+ablation, the extra conditions C7r-noIPW / C7r-noScreen, IPW weight-cap variants, the
+representation ratio ρ_rep, manipulation gain, policy error) is defined in
+`plans/EXPERIMENT_PLAN.md`; implement them as defined there. Eval seeds are reserved as 1000–1049.
+
 ---
 
 ## 1. Scope of this build round
