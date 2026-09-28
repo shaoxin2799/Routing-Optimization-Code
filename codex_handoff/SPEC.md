@@ -157,6 +157,98 @@ ablation, the extra conditions C7r-noIPW / C7r-noScreen, IPW weight-cap variants
 representation ratio ρ_rep, manipulation gain, policy error) is defined in
 `plans/EXPERIMENT_PLAN.md`; implement them as defined there. Eval seeds are reserved as 1000–1049.
 
+
+#### 0.3.7 Controller map "M1": from observable evidence to policy target (authoritative; replaces §7.3–7.4)
+
+All quantities below are computed from L3 observables only. Weeks are indexed by w; the
+evidence window is the last H = 4 weeks, with age weights a_0..a_3 = (1, 0.75, 0.5, 0.25).
+
+**Step 0: planning constants (known to the planner, fixed before runs).**
+β̂_v = the calibrated *mid*-regime visit effect (so the planner is misspecified in the
+low/high effect regimes; this is intended); k = (1/7)Σ_{d=0..6}(1−α̂)^d with α̂ = 0.02;
+c_I = λ_max/2 (the prior intrusion cost). Planner constants never read the simulator's true values.
+
+**Step 1: response rates (window + shrinkage).**
+p̄_w = (number of speakers over the last H weeks) / (H·N).
+r̂_g = (S_g + 2·p̄_w) / (H·n_g + 2), where S_g = number of (resident, week) responses in
+segment g over the window. Floor r̂_g ≥ 0.05. Stabilized weight w_g = p̄_w / r̂_g.
+
+**Step 2: per-resident loneliness estimate ℓ̂_i.**
+- Base: ℓ_obs_i, the latest 4-weekly screening.
+- Responders (spoke in the window): ℓ̂_i = clip(ℓ_obs_i + γ_s·Σ_a a·conf·(0.5 − sat) / Σ_a a, 0, 1),
+  with γ_s = 0.2 (this uses the parsed satisfaction and confidence of their messages).
+- Silent-risk uplift (C7 only): if the LLM screen flags i, ℓ̂_i ← min(1, ℓ̂_i + Δ_r), where
+  Δ_r = 0.15 (high) or 0.07 (medium).
+
+**Step 3: per-resident intrusion-risk estimate q̂_i ≈ P(one more visit is unwanted).**
+Segment prior q̄_g (Step 4). Evidence counts over the window, with age weights:
+L_i = Σ a·(#"less" visit_pref + #declines); M_i = Σ a·(#"more" visit_pref + 0.5·#accepted visits).
+q̂_i = (2·q̄_g + L_i) / (2 + L_i + M_i). For a second visit in the same week:
+q̂_i^(2) = 1 − (1 − q̂_i)².
+
+**Step 4: segment prior with non-response weighting (this is where IPW and the cap act).**
+q_i^resp = L_i / (L_i + M_i) for residents with L_i + M_i > 0 in the window (set R_g).
+Raw segment mean q̄_g^raw = mean_{i∈R_g} q_i^resp (Hájek). Population mean
+q̄_pop = Σ_g n_g q̄_g^raw / Σ_g n_g (**population-weighted**, not voice-weighted).
+Shrinkage factor s_g = min(1, w_max·r̂_g / p̄_w) · |R_g| / (|R_g| + 3).
+q̄_g = s_g·q̄_g^raw + (1 − s_g)·q̄_pop. Uncapped IPW: w_max = ∞ (only the evidence term remains).
+If |R_g| = 0: q̄_g = q̄_pop. Global prior when nobody has spoken yet: q̄_pop = 0.3.
+
+**Step 5: predicted marginal welfare of a visit (observable utility prediction).**
+m̂_i^(1) = 2β̂_v·k·ℓ̂_i·(1 − q̂_i) − c_I·q̂_i
+m̂_i^(2) = 2β̂_v·k·ℓ̂_i·(1 − q̂_i^(2)) − c_I·q̂_i^(2)
+(the same functional form as the hidden gold-label marginal utility §5.5, with hidden
+quantities replaced by observable estimates).
+Predicted welfare level: û_i = −ℓ̂_i² − c_I·q̂_i·V_i^{w−1}; segment level û_g = mean_{i∈g} û_i.
+
+**Step 6: welfare criterion → priority weights ω_i** (the only place the criterion enters)
+- utilitarian: ω_i = 1
+- Nash: ω_i = 1 / max(0.05, 1 + û_i)
+- Rawlsian (soft-min over segments): ω_i = exp(−κ_R (û_{g(i)} − min_h û_h)), with κ_R = 20.
+
+**Step 7: target shares and usage (Lipschitz by construction).**
+Z = Σ_j Σ_{v=1,2} [ω_j m̂_j^(v)]_+ .
+If Z < Z_min (= 1e−4): keep the previous shares (log `rule=hold_low_signal`). Otherwise
+π*_g = Σ_{i∈g} Σ_v [ω_i m̂_i^(v)]_+ / Z.
+Target usage u* = min(1, #{(i,v): m̂_i^(v) > 0} / B_v). The budget is a cap, not an obligation.
+
+**Step 8: bounded update.** π ← Proj_simplex(π + clip(π* − π, −δ, δ)), with δ = 0.05;
+u ← u + clip(u* − u, −0.1, 0.1).
+
+**Step 9: allocation.** Slots = round(u·B_v). Segment quotas come from largest-remainder
+rounding of π·slots. Within each segment, candidate (i,v) pairs are ranked by ω_i m̂_i^(v)
+(ties by pid), and **only pairs with m̂ > 0 are assigned**; at most v_max = 2 per resident.
+Unfilled quota goes to the global pool (same ranking); still unfilled slots stay unused.
+Visits are placed Monday to Friday in rank order.
+
+**Step 10: events.** ē_g = the Hájek mean of the parsed event_pref over the window (same
+shrinkage as Step 4). Population demand Ê = Σ_g n_g ē_g / N. If Ê > 0.15 then n_e += 1; if
+Ê < −0.15 then n_e −= 1; clip to [0, B_e].
+
+**Step 11: audit.** Log per week: r̂_g, w_g, s_g, q̄_g, all ω-weighted segment totals, π*,
+π, u, slots, rule ids (`hold_low_signal`, `cap_clip`, `event_up`/`event_down`), and per
+allocated visit (i, v, ω_i, m̂_i^(v)).
+
+**Variants (all use the same code path with switches):**
+
+| Variant | Switches |
+|---|---|
+| C7u / C7r / C7n | ω per Step 6; IPW on (w_max = 5); screening on |
+| C7r-noIPW | q̄_pop and Ê are **voice-weighted** (pooled over all responders); s_g uses the evidence term only |
+| C7r-noScreen | Δ_r = 0 |
+| C7r-IPW∞ / IPW3 | w_max = ∞ / 3 |
+| **C6 (response-only, pooled)** | noIPW + noScreen |
+| **C6q (request-driven service)** | only residents with ≥ 1 "more" request in the window are candidates, ranked by the latest urgency; no screening. This is a realistic "visits on request" baseline |
+| C4 / C5 | same M1 with the parser replaced (survey answers / keyword rules) |
+| C8/C9 | the black-box LLM outputs (n_e, π, u); Step 9 allocation is reused with its π |
+
+**Consequences for the propositions:** P2 holds for π* (Step 7). π* is Lipschitz in (ℓ̂, q̂)
+on {Z ≥ Z_min}, with a constant bounded by (max ω)·(2β̂_v k + c_I)/Z_min, and Step 8 caps any
+change at δ. The within-segment ranking in Step 9 is discontinuous; P2 is stated for the
+target and the shares, not for individual assignments.
+**The screening interval** (default 4 weeks) is an E9 factor {2, 4, 8}: sparse screening
+makes voice matter more.
+
 ---
 
 ## 1. Scope of this build round

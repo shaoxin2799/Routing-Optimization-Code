@@ -131,6 +131,7 @@ and screening flags are derived from these.
 ## 4. Methods under test
 
 ### 4.1 Our method (C7): a modular pipeline
+**Exact controller map ("M1"): see SPEC §0.3.7. It is the authoritative definition of Steps 1–11 below.**
 1. **Interpretation**: an LLM parses each message into {satisfaction, visit_pref, event_pref,
    urgency, confidence}.
 2. **Silent handling**: an LLM screens non-responders' service records into {risk, priority}.
@@ -153,7 +154,8 @@ and screening flags are derived from these.
 | C3 MABS closed loop | our prior, state-only method |
 | C4 structured survey + rules | idealized, no-LLM reference |
 | C5 keyword parser + rules | no-LLM interpretation |
-| C6 response-only (LLM parse, no IPW, no screening; influence ∝ number of voices) | the representation-bias baseline |
+| C6 response-only (LLM parse, no IPW, no screening; voice-weighted pooling) | the representation-bias baseline |
+| C6q request-driven ("visits on request") | realistic service-model baseline |
 | C8 informed black-box LLM (objective, budget, history and sample messages are given; it outputs n_e and shares) | end-to-end alternative |
 | C9 C8 + the same step bounds | isolates structure vs bounds |
 | C10 myopic oracle (sees hidden state) | upper reference |
@@ -184,7 +186,7 @@ Seeds: dev 0–9; eval seeds are reserved as 1000–1049 (experiments use the fi
 | **E6 Audit** | RQ5 | replay; re-sampling at T=0.1/0.7 (5×); leave-one-message-out influence | C7r, C8, C9 | 20 | Table 4 |
 | **E7 Model generality** | generality | interpreter ∈ {Llama-3.1-8B or phi-4, Qwen3-14B, Mistral-Small-24B, 72B-AWQ}; persona ∈ {Qwen3-8B, Llama-3.1-8B or phi-4} | C6, C7r, C8 | 10 | Table S |
 | **E8 State-expression fidelity** | validity | E8a recovery; E8b distribution vs NSHAP/BRFSS by strata; E8c 3×3 generator × interpreter matrix; styles incl. indirect | persona + parse | 5 | Table S, Fig. S |
-| **E9 Sensitivity** | robustness of conclusions | one at a time: φ {weak, medium, strong, random}; d_v {.1, .2, .4}; α {.01, .02, .05}; r5 {.3, .5, .7}; δ {.02, .05, .1}; w_max {3, 5, ∞}; event threshold {.1, .15, .25} | C2*, C6, C7r, C8, C10 | 10 | Table S (sign-consistency matrix) |
+| **E9 Sensitivity** | robustness of conclusions | one at a time: φ {weak, medium, strong, random}; d_v {.1, .2, .4}; α {.01, .02, .05}; r5 {.3, .5, .7}; screening interval {2, 4, 8} weeks; δ {.02, .05, .1}; w_max {3, 5, ∞}; event threshold {.1, .15, .25} | C2*, C6, C7r, C8, C10 | 10 | Table S (sign-consistency matrix) |
 | **E10 Scale & cost** | practicality | N {200, 500, 1000} | C7r, C8 | 5 | Table S (calls, tokens, wall time) |
 | **L Legacy** | continuity with prior work | MABS setting | L-* | 4 + 30 | Supp. |
 
