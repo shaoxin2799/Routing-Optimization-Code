@@ -856,6 +856,12 @@ NSHAP (https://www.icpsr.umich.edu/sites/icpsr/view/collections/706), HRS
 (https://hrs.isr.umich.edu/data-products), SHARE (https://share-eric.eu/data/data-access),
 CHARLS (https://charls.pku.edu.cn/en), ELSA (https://www.elsa-project.ac.uk/accessing-elsa-data)
 — all require login/registration. Only the `NshapSource` stub is built.
+Known NSHAP facts (from the ICPSR collection page) for the later adapter: person id `SU_ID` links
+respondents across rounds; each round has a cross-sectional weight `WEIGHT_ADJ` (round-specific);
+for longitudinal analyses use the Round 2 `WEIGHT_ADJ` until a panel weight exists. Study pages:
+R3 https://www.icpsr.umich.edu/web/ICPSR/studies/36873/versions/V9 (public DS1 core, DS3 social
+networks, DS11 COVID; Stata format), R2 https://www.icpsr.umich.edu/web/ICPSR/studies/34921/versions/V5.
+Round 4 (study 39511) is restricted-only and out of scope.
 
 ## E. Algorithms (pseudocode)
 
