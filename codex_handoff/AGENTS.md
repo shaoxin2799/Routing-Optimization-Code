@@ -12,8 +12,9 @@ single source of truth.
 
 ## Hard rules
 1. **Data**: never commit anything under `data/raw`, `data/interim` or `data/processed`.
-   Commit only `data/MANIFEST.json`. Do not attempt NSHAP/HRS/SHARE/CHARLS/ELSA downloads;
-   only the stubs are built (SPEC §3.5).
+   Commit only `data/MANIFEST.json`. Do not attempt NSHAP/HRS/SHARE/CHARLS/ELSA downloads.
+   NSHAP R3 (DS1 core, DS3 networks, Stata) is placed manually in `data/raw/nshap/r3/`; if present,
+   use it via `NshapSource` (SPEC §0.3.2); if absent, the pipeline must still run (flag "pre-NSHAP").
 2. **Verify variable names** against downloaded codebooks. Mappings live in
    `apabm/data/*_varmap.yaml`.
 3. **Hidden vs observable**: controllers and baselines (except the oracle C10) receive only
