@@ -1,0 +1,131 @@
+% =====================================================================
+% DRAFT ONLY: EXPECTED ("good case") values for previewing Branch A.
+% These are NOT results. Every value renders red with a dagger.
+% The submission build must \input the script-generated results_macros.tex
+% instead. Defining \SubmissionBuild makes this file abort compilation.
+% =====================================================================
+\ifdefined\SubmissionBuild
+  \errmessage{DRAFT expected values loaded in a submission build. Use results_macros.tex}
+\fi
+\newcommand{\draftnum}[1]{\textcolor{red}{#1\textsuperscript{\dag}}}
+\newcommand{\pendnum}{\textcolor{red}{[?]}}
+% ---- E1 (n=30), S1 kappa=2 ----
+\newcommand{\vN}{\draftnum{30}}
+\newcommand{\vNsweep}{\draftnum{20}}
+\newcommand{\vVisitsLo}{\draftnum{690}}
+\newcommand{\vVisitsHi}{\draftnum{704}}
+\newcommand{\vRhoSix}{\draftnum{0.62}}
+\newcommand{\vRhoSevenR}{\draftnum{0.93}}
+\newcommand{\vDRho}{\draftnum{+0.31}}
+\newcommand{\vDRhoCI}{\draftnum{[+0.23,+0.38]}}
+\newcommand{\vPRho}{\draftnum{<0.001}}
+\newcommand{\vWsSix}{\draftnum{$-0.307$}}
+\newcommand{\vWsSevenR}{\draftnum{$-0.253$}}
+\newcommand{\vDWs}{\draftnum{+0.054}}
+\newcommand{\vDWsCI}{\draftnum{[+0.039,+0.068]}}
+\newcommand{\vPWs}{\draftnum{0.0008}}
+\newcommand{\vRbWs}{\draftnum{0.78}}
+\newcommand{\vDWm}{\draftnum{+0.045}}
+\newcommand{\vDWmCI}{\draftnum{[+0.029,+0.059]}}
+\newcommand{\vPWm}{\draftnum{0.0012}}
+\newcommand{\vDWstat}{\draftnum{+0.009}}
+\newcommand{\vDWstatCI}{\draftnum{[+0.003,+0.015]}}
+\newcommand{\vPWstat}{\draftnum{0.012}}
+\newcommand{\vTOSTstat}{\pendnum}
+\newcommand{\vDWthree}{\draftnum{+0.015}}
+\newcommand{\vDWthreeCI}{\draftnum{[+0.008,+0.023]}}
+\newcommand{\vPWthree}{\draftnum{0.004}}
+\newcommand{\vRhoThree}{\draftnum{0.69}}
+\newcommand{\vDWeight}{\draftnum{+0.008}}
+\newcommand{\vDWeightCI}{\draftnum{[+0.002,+0.014]}}
+\newcommand{\vPWeight}{\draftnum{0.019}}
+\newcommand{\vDWseight}{\draftnum{+0.023}}
+\newcommand{\vDWseightCI}{\draftnum{[+0.012,+0.034]}}
+\newcommand{\vRhoEight}{\draftnum{0.77}}
+\newcommand{\vRhoNine}{\draftnum{0.82}}
+\newcommand{\vWstat}{\draftnum{$-0.219$}}
+\newcommand{\vWeight}{\draftnum{$-0.218$}}
+\newcommand{\vWnine}{\draftnum{$-0.214$}}
+\newcommand{\vWsevenU}{\draftnum{$-0.205$}}
+\newcommand{\vWsevenR}{\draftnum{$-0.210$}}
+\newcommand{\vWsevenN}{\draftnum{$-0.207$}}
+\newcommand{\vWmSevenU}{\draftnum{$-0.273$}}
+\newcommand{\vWmSevenR}{\draftnum{$-0.257$}}
+\newcommand{\vWmSevenN}{\draftnum{$-0.263$}}
+\newcommand{\vWsSevenU}{\draftnum{$-0.263$}}
+\newcommand{\vWsSevenN}{\draftnum{$-0.258$}}
+\newcommand{\vGapW}{\draftnum{65}}
+\newcommand{\vGapWm}{\draftnum{71}}
+% ---- E3 (n=20) ----
+\newcommand{\vKzeroDRho}{\draftnum{+0.03}}
+\newcommand{\vKzeroDRhoCI}{\draftnum{[$-0.01$,+0.07]}}
+\newcommand{\vKzeroP}{\draftnum{0.32}}
+\newcommand{\vKzeroDWs}{\draftnum{+0.003}}
+\newcommand{\vKthreeRhoSix}{\draftnum{0.47}}
+\newcommand{\vKthreeRhoSevenR}{\draftnum{0.84}}
+\newcommand{\vKthreeDWs}{\draftnum{+0.060}}
+\newcommand{\vKthreeDWsCI}{\draftnum{[+0.044,+0.076]}}
+\newcommand{\vSzeroDWs}{\pendnum}
+\newcommand{\vSzeroDWsCI}{\pendnum}
+\newcommand{\vStwoaDWs}{\pendnum}
+\newcommand{\vStwoaDWsCI}{\pendnum}
+\newcommand{\vStwobDWs}{\pendnum}
+\newcommand{\vStwobDWsCI}{\pendnum}
+\newcommand{\vRhoSixQ}{\pendnum}
+\newcommand{\vWsSixQ}{\pendnum}
+\newcommand{\vIPWmain}{\draftnum{+0.019}}
+\newcommand{\vIPWmainCI}{\draftnum{[+0.009,+0.029]}}
+\newcommand{\vPIPWmain}{\draftnum{0.011}}
+\newcommand{\vScrMain}{\draftnum{+0.031}}
+\newcommand{\vScrMainCI}{\draftnum{[+0.019,+0.042]}}
+\newcommand{\vInter}{\draftnum{+0.001}}
+\newcommand{\vInterCI}{\draftnum{[$-0.006$,+0.009]}}
+\newcommand{\vPInter}{\draftnum{0.71}}
+% ---- E2 (n=20 per budget) ----
+\newcommand{\vAdvMax}{\draftnum{+0.012}}
+\newcommand{\vAdvMaxCI}{\draftnum{[+0.005,+0.019]}}
+\newcommand{\vAdvMaxBudget}{\draftnum{0.10}}
+\newcommand{\vAdvRich}{\draftnum{+0.003}}
+\newcommand{\vAdvRichCI}{\draftnum{[$-0.002$,+0.008]}}
+\newcommand{\vPAdvRich}{\draftnum{0.27}}
+% ---- E4b (n=20) ----
+% dev* = deviation from clean-parser target (MUST be 0 at eps=0);
+% err* = distance to the full-information (C10) share reference.
+\newcommand{\vDevInfHigh}{\pendnum}
+\newcommand{\vDevCapFiveHigh}{\pendnum}
+\newcommand{\vDevCapThreeHigh}{\pendnum}
+\newcommand{\vDevNaiveHigh}{\pendnum}
+\newcommand{\vErrInfZero}{\draftnum{0.080}}
+\newcommand{\vErrInfHigh}{\draftnum{0.350}}
+\newcommand{\vErrThreeZero}{\draftnum{0.110}}
+\newcommand{\vErrThreeHigh}{\draftnum{0.220}}
+\newcommand{\vErrNaiveHigh}{\draftnum{0.210}}
+\newcommand{\vCrossEps}{\draftnum{0.1 and 0.2}}
+\newcommand{\vSlopeInf}{\draftnum{+0.39}}
+\newcommand{\vSlopeInfCI}{\draftnum{[+0.25,+0.53]}}
+\newcommand{\vPSlopeInf}{\draftnum{0.002}}
+\newcommand{\vCapActive}{\pendnum}
+% ---- E6 (n=20) ----
+\newcommand{\vReplay}{\draftnum{100\%}}
+\newcommand{\vVarLowSevenR}{\draftnum{0.029}}
+\newcommand{\vVarLowEight}{\draftnum{0.101}}
+\newcommand{\vVarLowNine}{\draftnum{0.064}}
+\newcommand{\vVarRatioLow}{\draftnum{3.5}}
+\newcommand{\vPVar}{\draftnum{0.001}}
+\newcommand{\vVarHighSevenR}{\draftnum{0.063}}
+\newcommand{\vVarHighEight}{\draftnum{0.216}}
+% ---- E8 ----
+\newcommand{\vFidRho}{\draftnum{0.82}}
+\newcommand{\vFidVisit}{\draftnum{0.78}}
+\newcommand{\vFidEvent}{\draftnum{0.74}}
+\newcommand{\vFidDirect}{\draftnum{0.84}}
+\newcommand{\vFidIndirect}{\draftnum{0.70}}
+\newcommand{\vFidInvalid}{\draftnum{0.8\%}}
+% ---- data-grounding regimes (E9) ----
+\newcommand{\vRegWsLo}{\draftnum{+0.031}}
+\newcommand{\vRegWsHi}{\draftnum{+0.041}}
+\newcommand{\vRegNshapDWs}{\draftnum{+0.031}}
+\newcommand{\vRegNshapDWsCI}{\draftnum{[+0.018,+0.044]}}
+\newcommand{\vRegNshapDRho}{\draftnum{+0.20}}
+\newcommand{\vRegNshapDWstat}{\draftnum{+0.007}}
+\newcommand{\vRegNshapDWstatCI}{\draftnum{[+0.001,+0.013]}}

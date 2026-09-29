@@ -1,0 +1,31 @@
+% Branch A results section (expected outcome). Numbers come only from macros.
+\section{Results}
+\label{sec:results}
+
+\subsection{Who is represented under selective feedback?}
+\label{sec:representationresults}
+Under need-dependent silence (S1, $\kappa=2$), response-pooled adaptation (\C{6}) allocated the low-response cohort a visit share below its share of need ($\rho_{\mathrm{rep}}=\vRhoSix$; \cref{tab:main}). Complete M1 (\C{7r}) raised representation to \vRhoSevenR\ (paired difference \vDRho, 95\% CI \vDRhoCI; $p_{\mathrm{Holm}}$ \vPRho) and the cohort's welfare by \vDWs\ (\vDWsCI; $p_{\mathrm{Holm}}=\vPWs$; $r_{rb}=\vRbWs$). The worst-off hidden cluster gained \vDWm\ (\vDWmCI). Accepted visits ranged from \vVisitsLo\ to \vVisitsHi\ across conditions, so these differences reflect allocation rather than service volume.
+
+Selective participation produced the gap. Without need-dependent silence ($\kappa=0$), \C{6} and \C{7r} differed by \vKzeroDRho\ in $\rho_{\mathrm{rep}}$ (\vKzeroDRhoCI; $p_{\mathrm{Holm}}=\vKzeroP$) and by \vKzeroDWs\ in $\WS$. The difference grew monotonically with $\kappa$ (\cref{fig:representation}). At $\kappa=3$, representation fell to \vKthreeRhoSix\ under \C{6} and to \vKthreeRhoSevenR\ under \C{7r}: M1 reduced the distortion but did not remove it.
+
+The pooling-by-screening factorial separates the two mechanisms. Population pooling alone raised $\WS$ by \vIPWmain\ (\vIPWmainCI), record-based screening alone by \vScrMain\ (\vScrMainCI), and their interaction was \vInter\ (\vInterCI; $p_{\mathrm{Holm}}=\vPInter$). The mechanisms are therefore approximately additive, with the larger share from screening. This matches their roles: records carry information about residents who do not speak, whereas pooling corrects only the between-group composition of the evidence.
+
+The correction has a predictable boundary. Under segment-dependent participation (S0), the cohort gain was \vSzeroDWs\ (\vSzeroDWsCI). When dissatisfied residents fell silent (S2a), it was \vStwoaDWs\ (\vStwoaDWsCI), because that dissatisfaction is absent from both messages and group composition (\cref{eq:voicebias}). When dissatisfied residents became louder (S2b), it was \vStwobDWs\ (\vStwobDWsCI). Requiring an explicit request (\C{6q}) reduced representation to \vRhoSixQ.
+
+\subsection{Outcomes at the same service capacity}
+\label{sec:budgetresults}
+At the default budget, \C{7r} exceeded the development-selected static policy by \vDWstat\ in population welfare (\vDWstatCI; $p_{\mathrm{Holm}}=\vPWstat$). It also exceeded the state-driven controller \C{3} by \vDWthree\ (\vDWthreeCI), which did not improve representation ($\rho_{\mathrm{rep}}=\vRhoThree$). The welfare criteria produced the intended trade-off. Utilitarian weighting (\C{7u}) attained the highest population welfare (\vWsevenU). The soft-min criterion (\C{7r}) attained the highest worst-cluster welfare (\vWmSevenR) and cohort welfare (\vWsSevenR). Nash weighting lay between them. Relative to the range between the fixed policy and the full-information reference, \C{7r} recovered \vGapW\% of the population-welfare gap and \vGapWm\% of the worst-cluster gap.
+
+The informed language-model planner (\C{8}) reached population welfare \vWeight, close to the static policy (\vWstat), with $\rho_{\mathrm{rep}}=\vRhoEight$. Adding M1's step bounds (\C{9}) improved both measures (\vWnine; \vRhoNine), but \C{7r} remained ahead of \C{8} by \vDWeight\ (\vDWeightCI) overall and by \vDWseight\ (\vDWseightCI) for the low-response cohort. Step constraints thus account for part of the gap; the remainder lies in how the evidence is weighted.
+
+Across budgets (\cref{fig:frontier}), the advantage over the static policy was largest when visits were scarce (\vAdvMax\ at \vAdvMaxBudget\ visits per capita; \vAdvMaxCI). It was not significant at the most generous budget (\vAdvRich; \vAdvRichCI; $p_{\mathrm{Holm}}=\vPAdvRich$). When capacity covers most candidates with positive predicted benefit, targeting matters less.
+
+\subsection{How interpretation error enters allocation}
+\label{sec:errorresults}
+On common observation snapshots, the deviation of target shares from the clean-parser target at $\epsilon_p=.3$ was \vDevInfHigh\ for uncapped pooling, \vDevCapFiveHigh\ for cap~5, \vDevCapThreeHigh\ for cap~3 and \vDevNaiveHigh\ for response pooling (all zero at $\epsilon_p=0$ by construction). The error-rate by uncapped-pooling interaction was \vSlopeInf\ (\vSlopeInfCI; $p_{\mathrm{Holm}}=\vPSlopeInf$).
+
+Relative to the full-information reference, the policy error of uncapped pooling rose from \vErrInfZero\ to \vErrInfHigh, whereas that of cap~3 rose from \vErrThreeZero\ to \vErrThreeHigh. The ordering reversed between $\epsilon_p=$ \vCrossEps. Caps therefore trade a small loss under clean interpretation for robustness to interpretation error, as \cref{prop:prior} predicts; the cap was active in \vCapActive\ of group-weeks. Response pooling amplified errors less (\vErrNaiveHigh), because it borrows less from sparse groups, but at the representation cost reported in \cref{sec:representationresults}.
+
+\subsection{Audit, fidelity and data grounding}
+\label{sec:checks}
+Replaying logged interpretations reproduced \vReplay\ of \C{7r}'s control decisions. With fixed inputs and resampled model outputs at temperature 0.1, share-vector variability was \vVarLowSevenR\ for \C{7r}, \vVarLowEight\ for \C{8} and \vVarLowNine\ for \C{9} (\C{8}/\C{7r} ratio \vVarRatioLow; $p_{\mathrm{Holm}}=\vPVar$); at temperature 0.7 it was \vVarHighSevenR\ and \vVarHighEight. Persona feedback preserved the intended states: recovered loneliness correlated with the hidden values at Spearman \vFidRho, and visit and event preferences were recovered with macro-F1 \vFidVisit\ and \vFidEvent. Recovery was lower for indirect than for direct language (\vFidIndirect\ vs.\ \vFidDirect), and \vFidInvalid\ of outputs were invalid. Across population-grounding regimes, the cohort gain ranged from \vRegWsLo\ to \vRegWsHi. With NSHAP-calibrated networks it was \vRegNshapDWs\ (\vRegNshapDWsCI), smaller but of the same sign, and the population-welfare advantage over the static policy was \vRegNshapDWstat\ (\vRegNshapDWstatCI).

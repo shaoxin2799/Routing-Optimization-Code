@@ -1,0 +1,29 @@
+% Branch B results section (ordinary outcome). Numbers come only from macros.
+% Sentences marked %IF must be kept or deleted according to the stated condition.
+\section{Results}
+\label{sec:results}
+
+\subsection{Who is represented under selective feedback?}
+\label{sec:representationresults}
+Under need-dependent silence (S1, $\kappa=2$), response-pooled adaptation (\C{6}) allocated the low-response cohort a visit share below its share of need ($\rho_{\mathrm{rep}}=\vRhoSix$; \cref{tab:main}). Complete M1 (\C{7r}) raised representation to \vRhoSevenR\ (difference \vDRho, 95\% CI \vDRhoCI; $p_{\mathrm{Holm}}$ \vPRho) and cohort welfare by \vDWs\ (\vDWsCI; $p_{\mathrm{Holm}}=\vPWs$). Accepted visits ranged from \vVisitsLo\ to \vVisitsHi\ across conditions. The effect is modest in absolute terms but concentrated where selective feedback operates: without need-dependent silence the two conditions differed by \vKzeroDRho\ (\vKzeroDRhoCI), and the gap widened with $\kappa$ (\cref{fig:representation}). At $\kappa=3$, representation remained at \vKthreeRhoSevenR\ under \C{7r}, compared with \vKthreeRhoSix\ under \C{6}.
+
+The factorial attributes most of the change to record-based screening (\vScrMain; \vScrMainCI). %IF IPW CI includes 0:
+Population pooling alone did not measurably change cohort welfare (\vIPWmain; \vIPWmainCI). %IF IPW CI excludes 0 instead:
+% Population pooling alone contributed a smaller effect (\vIPWmain; \vIPWmainCI).
+The interaction was \vInter\ (\vInterCI). In this setting, observable service records therefore carried more usable information about silent residents than the correction of group composition did. Under S0, S2a and S2b the cohort gains were \vSzeroDWs, \vStwoaDWs\ and \vStwobDWs\ respectively. Dissatisfaction-dependent silence was not corrected, as \cref{eq:voicebias} anticipates. The request-driven comparator \C{6q} reached $\rho_{\mathrm{rep}}=\vRhoSixQ$.
+
+\subsection{Outcomes at the same service capacity}
+\label{sec:budgetresults}
+At the default budget, the population-welfare difference between \C{7r} and the development-selected static policy was \vDWstat\ (\vDWstatCI; $p_{\mathrm{Holm}}=\vPWstat$). %IF TOST passes:
+An equivalence test with the preregistered margin \vTOSTstat\ supports the conclusion that the representation gains did not reduce population welfare. %IF TOST fails instead:
+% The interval does not exclude a population-welfare cost of the size of its lower bound, so we make no claim either way.
+The welfare criteria still differed as intended: utilitarian weighting attained the highest population welfare (\vWsevenU), and the soft-min criterion the highest worst-cluster (\vWmSevenR) and cohort welfare (\vWsSevenR). Relative to the informed language-model planner, \C{7r} differed by \vDWeight\ (\vDWeightCI) in population welfare and by \vDWseight\ (\vDWseightCI) for the cohort; its representation was higher (\vRhoSevenR\ vs.\ \vRhoEight). Across budgets (\cref{fig:frontier}), any advantage over the static policy was confined to scarce capacity (\vAdvMax\ at \vAdvMaxBudget\ visits per capita; \vAdvMaxCI) and was absent when capacity was generous (\vAdvRich; \vAdvRichCI).
+
+\subsection{How interpretation error enters allocation}
+\label{sec:errorresults}
+On common snapshots, deviation from the clean-parser target at $\epsilon_p=.3$ was \vDevInfHigh\ for uncapped pooling, compared with \vDevCapFiveHigh\ (cap~5), \vDevCapThreeHigh\ (cap~3) and \vDevNaiveHigh\ (response pooling). The error-rate by uncapped-pooling interaction was \vSlopeInf\ (\vSlopeInfCI; $p_{\mathrm{Holm}}=\vPSlopeInf$). %IF cap effects are small or n.s.:
+Caps reduced this amplification, but the difference between cap~3 and cap~5 was within sampling uncertainty. The practical conclusion is to avoid uncapped pooling, not to fine-tune a particular cap. The cap was active in \vCapActive\ of group-weeks.
+
+\subsection{Audit, fidelity and data grounding}
+\label{sec:checks}
+Replay reproduced \vReplay\ of \C{7r}'s decisions. Under fixed inputs, share-vector variability was \vVarLowSevenR\ for \C{7r} and \vVarLowEight\ for \C{8} at temperature 0.1 ($p_{\mathrm{Holm}}=\vPVar$), and \vVarHighSevenR\ vs.\ \vVarHighEight\ at 0.7. State recovery through persona text reached Spearman \vFidRho\ for loneliness, with preference macro-F1 \vFidVisit\ (visits) and \vFidEvent\ (events). Indirect language was recovered less well (\vFidIndirect\ vs.\ \vFidDirect), which bounds how far interpretation can substitute for explicit elicitation. The cohort gain ranged from \vRegWsLo\ to \vRegWsHi\ across grounding regimes, and was \vRegNshapDWs\ (\vRegNshapDWsCI) with NSHAP-calibrated networks.
