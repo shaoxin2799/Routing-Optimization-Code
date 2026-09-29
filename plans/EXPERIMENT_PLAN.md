@@ -227,7 +227,9 @@ per-person resource cap.
 | G4 non-degeneracy | share of agents for whom a 2nd weekly visit has negative marginal utility is between 5% and 60%; the response rate is 0.5 ± 0.05 | report; revisit the φ mapping on data grounds only |
 | G5 power | pilot on dev seeds: paired d_z of the primary contrasts. If d_z < 0.55, raise E1 to 50 seeds and E3 to 30 | adjust the seed counts before the freeze |
 
-After all gates pass: tag `prereg-v1` (configs, prompts, analysis scripts, primary endpoints) → eval runs.
+| G6 language channel | live-vs-bank agreement on dev seeds (SPEC §0.3.8-E): same sign, bank estimate inside the live CI, parse-F1 gap ≤ 0.05, Bank A ≈ Bank B | enlarge the bank or add key dimensions; repeat |
+
+After all gates pass **and a human signs off the gate report**: tag `prereg-v1` (configs, prompts, analysis scripts, primary endpoints) → eval runs.
 
 ---
 
@@ -272,6 +274,7 @@ After all gates pass: tag `prereg-v1` (configs, prompts, analysis scripts, prima
 | Implementation errors | tests, legacy replication, oracle and none bounds, an independent code review of controllers |
 
 ## 11. Compute budget and run order
+**Superseded by SPEC §0.3.8 (frozen language channel, sharded parallel execution, critical path ≈ 8–12 h). The text below is kept for reference only.**
 - Two vLLM servers on 2× A100 80GB (persona on GPU0, interpreter on GPU1; the 72B-AWQ model
   with TP=2 only for E7). About 1–2 minutes per LLM run at N=200; 12 runs are executed concurrently.
 - Approximate LLM runs: E1 390, E1b 320, E2 700, E3 700, E4 720, E4b 960 (can reuse parsed

@@ -23,15 +23,18 @@ single source of truth.
    unseeded `random`.
 5. **LLM calls** only through `apabm.llm.client.call`. No other module talks HTTP. Everything
    is logged.
-6. **Caching**: replay only within the same run (condition + seed + config hash). Never reuse
-   LLM outputs across conditions or seeds.
-7. **Seeds**: tune only on dev seeds (0–9; legacy 42/100/200). Eval seeds 1000–1029 and
+6. **Caching** follows SPEC §0.3.8-D: frozen message/parse banks and content-addressed
+   memoization (the key holds every input) are allowed; returning outputs for different inputs,
+   cross-key replay, and online filling of bank misses are forbidden. A bank miss is a hard error.
+7. **Freeze**: never tag `prereg-v1` before gates G0–G6 pass and the human sign-off file
+   `GATES_SIGNOFF.md` exists.
+8. **Seeds**: tune only on dev seeds (0–9; legacy 42/100/200). Eval seeds 1000–1049 and
    legacy holdout 300/400/500/600 are for final runs only.
-8. **No result-shaping**: do not tune dynamics, preference mappings or prompts to make any
+9. **No result-shaping**: do not tune dynamics, preference mappings or prompts to make any
    condition win. The only calibration targets are those in SPEC §8.
-9. **Mock backend** is for tests and smoke runs only. The reporting code must refuse
+10. **Mock backend** is for tests and smoke runs only. The reporting code must refuse
    manifests with `backend=mock`.
-10. Tests in SPEC §12 are mandatory and must never be skipped or weakened to pass.
+11. Tests in SPEC §12 are mandatory and must never be skipped or weakened to pass.
 
 ## Style
 - Python 3.11, type hints, dataclasses/pydantic v2, small pure functions for the dynamics

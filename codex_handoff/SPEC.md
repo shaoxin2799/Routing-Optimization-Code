@@ -249,6 +249,94 @@ target and the shares, not for individual assignments.
 **The screening interval** (default 4 weeks) is an E9 factor {2, 4, 8}: sparse screening
 makes voice matter more.
 
+
+#### 0.3.8 Frozen language channel and parallel execution (authoritative; supersedes §6.4 caching and §9 run order)
+
+**A. Message bank (persona expression).**
+- Cell key = (hidden persona cluster, communication style, lives_alone, mobility_limit,
+  felt-signal combination). Felt signals after noise/exaggeration are discrete:
+  loneliness {high, mid, low} × trend {better, worse, none} × visits {too_many, want_more, none}
+  × events {uncomfortable, want_more, too_many, none} = 108 combinations.
+- **Enumerate the full product** (not only "reachable" cells). Generate m = 6 messages per cell
+  with the persona model (T = 0.7, a per-cell stable seed); cells × m ≈ 7×5×2×2×108×6 ≈ 90k
+  short generations (≈ 5M tokens).
+- **Bank A** = primary generator family (Qwen3-8B). **Bank B** = second family (Llama-3.1-8B or
+  phi-4), for validation and E7.
+- At runtime a message is selected by keyed RNG (seed, pid, week, "bank"). **A missing cell is
+  a hard error**; online generation is never used as a fallback in bank mode.
+- UCLA-3 answers for E8b are banked in the same way (cluster × style × loneliness level).
+
+**B. Parse bank.** Every bank message is parsed once by every interpreter family (T = 0.1, a
+fixed seed). Store the raw output, the validated fields, and the retry/fallback flags. At
+runtime, parsing is a lookup. E4b perturbs these stored labels offline.
+
+**C. Screening and black-box calls (online).**
+- The screen input is discretized (ℓ_obs to 0.05, changes to 0.05, integer counts, booleans)
+  and content-addressed: key = hash(model revision, prompt template hash, discretized input,
+  sampling params, sampling seed).
+- One **shared, single-flight cache** (SQLite in WAL mode or Redis): concurrent requests for the
+  same key wait for one call.
+- C8/C9 prompts are also content-addressed; with the sampled messages taken from the bank,
+  their keys repeat across seeds rarely, so they are effectively online.
+- **Reproducibility is guaranteed by the frozen cache artifact**, which is shipped with the
+  results, not by re-running inference (vLLM is not batch-invariant).
+
+**D. Caching rule (replaces AGENTS rule 6).**
+- **Allowed**: the message and parse banks built before the freeze; content-addressed
+  memoization where the key contains every input that affects the output.
+- **Forbidden**: returning an output for a different input; replaying outputs recorded under
+  another key; filling bank misses online.
+
+**E. Gate G6: language-channel validation (dev seeds 0–9, before the freeze).**
+Run C6, C7r and C8 twice: in **live mode** (online persona generation plus online parsing) and
+in **bank mode**. G6 passes if:
+1. the sign of ΔW_silent(C7r − C6) and ΔW(C7r − C8) agrees in both modes, and the bank-mode
+   estimate lies inside the live-mode 95% CI;
+2. parse macro-F1 by style differs by ≤ 0.05 between modes;
+3. Bank A and Bank B give the same sign on these contrasts.
+
+If G6 fails, enlarge m or add key dimensions and repeat. **Do not freeze before G6 passes.**
+The G0–G6 gate report requires a **human sign-off** before the tag `prereg-v1` is created.
+
+**F. Execution model.**
+- Job = (experiment, condition, cell-params, seed). Jobs are idempotent and resumable. The
+  output directory is `results/<exp>/<cond>/<cellhash>/<seed>/`, written to a temp dir and
+  atomically renamed. A job manifest records status, host, timing and cache hit rates.
+- **Randomness**: a counter-based generator (numpy Philox), keyed by
+  (seed, stream, agent, day). Common random numbers (CRN) therefore hold regardless of execution
+  order or process.
+- **Hot loop**: numpy arrays and a sparse adjacency matrix; networkx only for build and metrics.
+- **Job classes and priority**:
+  - A = CPU-only: C0, C1, C2, C10, E4b offline, metrics, bootstrap;
+  - B = light GPU: bank-mode C3–C7 with screening calls;
+  - C = heavy GPU: C8/C9, E6 re-sampling, live validation, E7 black-box.
+  - GPU queue priority: primary E1/E3 > primary E2/E4b > secondary > E7/E9. Class C gets a
+    concurrency cap so it cannot starve the short screening calls.
+- **GPU router**: after the banks are built, every GPU runs a general inference replica (the
+  interpreter/screen model and the black-box model share replicas when memory allows). The
+  client does least-outstanding-requests routing across replicas. No fixed "one GPU per role".
+- **E7**: interpreter-family generality = re-parse the bank offline with each family (batch),
+  then CPU-only closed loops. Generator-family generality = Bank B. Only C8/C9 with other
+  families need online model swaps; schedule them on whichever GPU frees first. The 72B-AWQ
+  model (TP = 2) runs last.
+- **Concurrency is measured, not hard-coded**: a benchmark job runs 16 dev trajectories and
+  records CPU-seconds per trajectory, RSS, GPU requests/s and cache hit rate. The scheduler
+  then sets `world_workers = min(cores / threads_per_job, 0.8·RAM / RSS, GPU-limited rate)`
+  and logs the decision. Start around 64–96 and allow up to 128 when measurements permit.
+
+**G. Critical path and expected wall-clock time** (4×A100 + 256 CPU; if 2 GPUs, the
+GPU-bound phases take roughly ×2):
+1. 0–1.5 h in parallel: tests; data build and fusion (CPU); virtual-RCT calibration and the
+   C2 grid on dev seeds (CPU); bank A/B generation (GPU), pipelined with parsing.
+2. 1.5–3 h: dev pilot, gates G0–G6 (including live-vs-bank validation) → human sign-off →
+   `prereg-v1`.
+3. 3–7 h: all eval experiments sharded in parallel (E1, E2, E3, E4, E4b, E6 snapshots, E9, E10).
+4. 7–10 h: E6 re-sampling, E7 online C8/C9 swaps, retries, independent metric recomputation,
+   bootstrap, `export_tex.py` with all checks.
+
+Target: core primary data in ~4–6 h after the start, and the full suite in ~8–12 h. This is
+verified by the benchmark job, not assumed.
+
 ---
 
 ## 1. Scope of this build round
